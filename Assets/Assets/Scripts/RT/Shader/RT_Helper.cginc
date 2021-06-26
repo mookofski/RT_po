@@ -11,16 +11,17 @@ const static float MaxDist=100000000;
 
 
 
-
-
-
 struct collision// generated per ray
 {
-
+	//衝突場所
     float3 Pos;
+    //衝突距離
     float dist;
+    //衝突表面法線
     float3 SurNorm;
+    //衝突時色
     float4 color;
+    //衝突処理
     int type;
     float2 uv;
     
@@ -32,40 +33,19 @@ struct Ray
     float3 orig;
     float3 dir;
     float4 color;
+    //現屈折度数
     float rindex;
+    //屈折しているか
     bool refracted;
 };
-
-inline Ray MakeRay(float3 og,float3 d,float4 c)
-{
-    Ray ray;
-    ray.orig=og;
-    ray.dir=d;
-    ray.color=c;
-    ray.rindex=1.0f;
-    return ray;    
-
-}
-
-
-
 
 struct tri
 {
     float3 v[3];
 };
 
-inline float trisize(float3 t0,float3 t1,float3 t2)
-{
-
-    return  abs((t0.r*(t1.g-t2.g))+
-    (t1.r*(t2.g-t0.g))+
-    (t2.r*(t0.g-t1.g)));
-}
 
 
-
-Ray MakeRay(float3 og,float3 d,float4 c);
 inline float trisize(float3 t0,float3 t1,float3 t2);
 
 inline void HitTri(Ray r,inout collision col,tri T,float4 color,int type,float3 N);
@@ -77,8 +57,20 @@ inline float3 refr(Ray r,float3 sur,float N);
 
 
 
-inline void colcheck(inout collision col,Ray ray,float newvec,float3 norm,int coltype,float4 color,float2 uv)
+
+
+
+inline float trisize(float3 t0,float3 t1,float3 t2)
 {
+
+    return  abs((t0.r*(t1.g-t2.g))+
+    (t1.r*(t2.g-t0.g))+
+    (t2.r*(t0.g-t1.g)));
+}
+
+
+inline void colcheck(inout collision col,Ray ray,float newvec,float3 norm,int coltype,float4 color,float2 uv)
+{//衝突情報更新
     if(col.dist>newvec)
     {
         col.color=color;
@@ -111,8 +103,8 @@ inline void HitTri(Ray r,inout collision col,tri T,float4 color,int type,float3 
 
         h=cross(r.dir,edge[1]);
         v=dot(edge[0],h);
-
-        if((abs(v)>acc))
+		
+        if(abs(v)>0)
         {
 
             s=r.orig-T.v[0];
@@ -183,12 +175,13 @@ inline void HitSphere(Ray r,float3 co,float sc,float pull,inout collision col)
 
 
 
-inline float3 refr(Ray ray,float3 sur,float N)
+inline float3 refr(Ray ray,float3 sur,float RIndex)
 {
-    //source
+    //Vector ro Euler Algorithm source
     /*
     http://www.euclideanspace.com/maths/geometry/rotations/conversions/angleToEuler/index.htm
     */
+
     float2 r;
 
 
@@ -209,7 +202,9 @@ inline float3 refr(Ray ray,float3 sur,float N)
     r.x= atan2(plane.x * s - plane.y * plane.z * t ,
     1 - (plane.x*plane.x + plane.z*plane.z) * t);
 
-    r=r*N;
+    r=r*RIndex;
+    
+    //屈折後の回転を内向きの法線に適応
     
     float3 buf=sur;
     float3 res=sur;
@@ -226,7 +221,7 @@ inline float3 refr(Ray ray,float3 sur,float N)
 
     buf*=-1;
     
-    ray.rindex=N;
+    ray.rindex=RIndex;
 
     ray.refracted=!ray.refracted;
 

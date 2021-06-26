@@ -6,8 +6,13 @@ using UnityEngine;
 
 public class RSMAIN : MonoBehaviour
 {
+/*
+Shader-Engine Interface
+シェーダー-エンジン間インターフェース
+*/
 
 
+	//*シェーダーアウトプット関係*//
     public ComputeShader CPShader;
     public static RenderTexture RTraceImage;
 
@@ -76,6 +81,11 @@ public class RSMAIN : MonoBehaviour
         RTraceImage.Create();
         
     }
+    
+    
+    
+    //*シェーダー-エンジン間情報インターフェース*//
+    
 
     List<Vector4> v3to4(List<Vector3> v)
     {
@@ -87,32 +97,38 @@ public class RSMAIN : MonoBehaviour
         return buf;
     }
 
+//==VARIABLE==//
     private Camera _camera;
-
-
+    
+    //変動のない情報
+    //点座標　　
     private List<Vector4> VertexBuf;
-    List<int> ObjStride;
-
+    //オブジェクト毎インデックス
+    private List<int> ObjStride;
+    
     /// <summary>
-    /// Vertex Index, Per Triangle
+    /// Vertex Index, Per Triangle　三角インデックス
     /// </summary>
     List<Vector4> TriIndex_ObjStride;
     //* CONSTANT BUFFER END*//
-
+    //変動のない情報終了
 
     //* INSTANCE DATA BUFFER*//
+    //個体毎座標
     private List<Transform> Inst_T;
     /// <summary>
-    /// *XYZ COLOR, W MODEL INDEX
+    /// *XYZ COLOR, W MODEL INDEX　個体色、モデルID
     /// </summary>
     private List<Vector4> Inst_CI;
     /// <summary>
-    ///* X=TYPE Y=INDEX
+    ///* X=TYPE Y=INDEX　X=衝突時処理 Y=屈折度数
     /// </summary>
     public List<ObjectType> Inst_TI;
     //* INSTANCE DATA END*//
 
     private bool initialized = false;
+    
+    //*FUNCTIONS*//
     private void initialize()
     {
         initialized = true;
@@ -125,20 +141,24 @@ public class RSMAIN : MonoBehaviour
 
         _camera = GetComponent<Camera>();
 
+	TriIndex_ObjStride = new List<Vector4>();
+        Inst_T = new List<Transform>();
+        Inst_CI = new List<Vector4>();
+        Inst_TI = new List<ObjectType>();
 
+	//シーンから集めたモデル情報を取得
         MeshDataCollector.RenderData rd = new MeshDataCollector.RenderData();
         rd = MeshDataCollector.GetVlist();
 
         VertexBuf = v3to4(rd.VertexBuffer);
+
         ObjStride = new List<int>();
-
-
-        TriIndex_ObjStride = new List<Vector4>();
-
-        ObjStride.AddRange(rd.ObjectStride);
+                ObjStride.AddRange(rd.ObjectStride);
+   
 
 
         //三角インデックス生成
+        //SetfloatArrayが機能しないためインデックス4次元目にオフセットを記録
         {
             List<int> VertexStride = rd.VerterxStride;
 
@@ -168,10 +188,6 @@ public class RSMAIN : MonoBehaviour
 
         //オブジェクト毎データを変換/記録
 
-        Inst_T = new List<Transform>();
-        Inst_CI = new List<Vector4>();
-        Inst_TI = new List<ObjectType>();
-
         foreach (var b in MeshDataCollector.InstanceList)
         {
             Inst_T.Add(b.transform);
@@ -183,12 +199,6 @@ public class RSMAIN : MonoBehaviour
         SetShaderParameters();
 
     }
-    private void Awake()
-    {
-
-
-    }
-
 
 
     /// <summary>
@@ -200,7 +210,7 @@ public class RSMAIN : MonoBehaviour
 
 
         //Normal Precomputation
-        //ノーマル生成
+        //法線生成
         List<Vector4> NormalL = new List<Vector4>();
 
         {
@@ -255,11 +265,6 @@ public class RSMAIN : MonoBehaviour
             }
             CPShader.SetVectorArray("_Inst_ColandIndex", Col_MIndex.ToArray());
         }
-        //    CPShader.SetTexture(0,"_SkyTex",Sky);
-
-        Debug.Log("VERTEXCOUNT:" + VertexBuf.Count);
-        Debug.Log("TRICOUNT" + TriIndex_ObjStride.Count);
-
 
         Inst_CI.Clear();
         TriIndex_ObjStride.Clear();

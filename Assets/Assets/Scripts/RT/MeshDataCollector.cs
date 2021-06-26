@@ -8,16 +8,22 @@ using UnityEngine;
 public class MeshDataCollector : MonoBehaviour
 {
 
+//モデル、オブジェクト毎の情報収集
+	
+	//モデルリスト
     public static List<Mesh> Mlist;
+    //モデル名
     public List<string> Midentity;
+    //モデルインデックス
     public static int MIndex;
 
     public static bool constructed = false;
 
+	//レイトレーサー表示オブジェクト個体リスト
     public static List<ObjectInstnce> InstanceList;
 
 
-    public struct ObjectInstnce
+    public struct ObjectInstnce//オブジェクト個体
     {
         public Transform transform;
         public int Model;
@@ -40,19 +46,20 @@ public class MeshDataCollector : MonoBehaviour
     }
 
 
-    public struct RenderData
+    public struct RenderData//シェーダーインターフェース用
     {
+    //点座標
         public List<Vector3> VertexBuffer;
 
 
         /// <summary>
-        ///stores vertex index: Made per Tri
+        ///stores vertex index: Made per Tri　点インデックス
         /// </summary>
         public List<int> VerterxStride;
 
 
         /// <summary>
-        ///store position of each object's vertex head: Made per Mesh//
+        ///store position of each object's vertex head: Made per Mesh//　モデルインデックス
         /// </summary>
         public int[] ObjectStride;
 
@@ -65,7 +72,7 @@ public class MeshDataCollector : MonoBehaviour
         Mlist = new List<Mesh>();
         List<MeshFilter> mlist_temp = new List<MeshFilter>();
 
-
+	//シーン内全モデルを記録
         mlist_temp.AddRange(FindObjectsOfType<MeshFilter>());
 
 
@@ -76,6 +83,7 @@ public class MeshDataCollector : MonoBehaviour
         Midentity = new List<string>();
 
         //initialize first index
+        //各モデル情報記録
         foreach (MeshFilter b in mlist_temp)
         {
             dupe = false;
@@ -103,7 +111,6 @@ public class MeshDataCollector : MonoBehaviour
                     Mlist.Add(b.mesh);
                     Midentity.Add(b.mesh.name);
                 }
-
                 InstanceList.Add(
                     MakeOinstnce(
                         b.GetComponentInParent<Transform>(),
@@ -141,20 +148,20 @@ public class MeshDataCollector : MonoBehaviour
             int k = 0;
             //*Offsets index value 
             int IndexOffset = 0;
-            for (int i = 0; i < Mlist.Count; i++)//*RUN PER UNIQUE MODEL
+            for (int i = 0; i < Mlist.Count; i++)//*RUN PER UNIQUE MODEL　モデル毎情報生成
             {
 
-                //vertex data
+                //vertex data　点座標
                 rd.VertexBuffer.AddRange(Mlist[i].vertices);
-                //triangle index
+                //triangle index　三角インデックス
                 rd.VerterxStride.AddRange(Mlist[i].triangles);
                 //triangle index offset per unique model
 
-                //start of index
+                //start of index　インデックス開始地点
                 rd.ObjectStride[i * 3] = k;
-                //vertex count in mdoel
+                //vertex count in mdoel　現点座標数
                 rd.ObjectStride[(i * 3) + 1] = rd.VerterxStride.Count - k;
-                //Hightest value of each index per model    
+                //Hightest value of each index per model 　現モデルインデックス最高値、オフセット用   
                 rd.ObjectStride[(i * 3) + 2] = IndexOffset * 3;
 
                 //*update cumulative index offset  
