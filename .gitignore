@@ -1,0 +1,12 @@
+
+.vscode/
+
+Assets/Plugins/GitHub/Editor/
+
+Library/
+
+*.csproj
+
+Temp/
+
+workspace.code-workspace

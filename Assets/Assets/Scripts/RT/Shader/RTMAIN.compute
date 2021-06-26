@@ -1,0 +1,232 @@
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel CSMain
+#include "RT_Helper.cginc"
+
+
+// Create a RenderTexture with enableRandomWrite flag and set it
+// with cs.SetTexture
+RWTexture2D<float4> Result;
+
+
+
+float4x4 _C2WMX;
+float4x4 _IPJMX;
+int _TriCount;
+float4 _VertexBuffer[500];
+
+//* XYZ=Index, W, Object ID*2 = Object offset start, ID*2+1= Object vertex Count 
+float4 _VertexIndice[500];
+float4 _NormalArray[500];
+
+//Per Instance Data
+float4 _Inst_Translate[15];
+float4x4 _Inst_ScaleRot[15];
+float4x4 _Inst_RotOnly[15];
+
+float4 _Inst_ColandIndex[15];
+float4 _Type_Rindex[15];
+int _InstanceCount;
+
+
+
+
+Ray CreateCameraRay(float2 uv)
+{
+    Ray ray;
+    //copy Camera coords using A value
+    ray.orig=mul(_C2WMX,float4(0,0,1,1)).xyz;
+
+    //*Set XY of Ray
+    ray.dir=mul(_IPJMX,float4(uv,0,1)).xyz;
+    //*Move and Rotate 
+    ray.dir=(mul(_C2WMX,float4(ray.dir,0)).xyz);
+
+    return ray;
+}
+
+
+float3 TriLerp(float3 t1,float3 t2,float3 t3,float3 v)
+{
+    float3 v_p[4];
+
+    v_p[0]=mul(_IPJMX,f3to4(t1)).xyz;
+    v_p[1]=mul(_IPJMX,f3to4(t2)).xyz;
+    v_p[2]=mul(_IPJMX,f3to4(t3)).xyz;
+    v_p[3]=mul(_IPJMX,f3to4(v)).xyz;
+
+    float d= 1/trisize(v_p[0],v_p[1],v_p[2]);
+
+    float3 res;
+    res.x=trisize(v_p[3],v_p[1],v_p[2])*d;
+    res.y=trisize(v_p[0],v_p[3],v_p[2])*d;
+    res.z=trisize(v_p[0],v_p[1],v_p[3])*d;
+    
+    return res;
+
+}
+
+[numthreads(32,32,1)]
+void CSMain (uint3 id : SV_DispatchThreadID)
+{
+
+    float2 resolution;
+    Result.GetDimensions(resolution.x,resolution.y);
+
+    float2 uv=(id.xy/resolution)*2-1;
+
+    collision col;
+    Ray ray;
+    
+    //*Scaler initialization
+    ray.rindex=1;
+    col.dist=MaxDist;   
+    col.type=0;
+    ray.refracted=false;
+    col.uv=float2(0,0);
+
+    //*Vector Initialization
+
+    ray.dir=mul(_IPJMX,float4(uv,0,1)).xyz;
+    ray.dir=normalize(mul(_C2WMX,float4(ray.dir,0)).xyz);
+    ray.orig=mul(_C2WMX,float4(0,0,0,1)).xyz;
+    col.Pos=ray.orig;
+
+    //*Color Initialization
+    col.color=float4(ray.dir.xyz,1);
+
+
+    tri T;
+
+    for(int i=0;i<5;i++)
+    {
+        //*RayInitialization
+        ray.orig=col.Pos;
+        ray.orig+=(ray.dir*1.3f);   
+        col.dist=MaxDist;
+
+        //*_VertexIndice*//
+        //* XYZ=Each represent Index of _VertexBuffer
+        //* W, Object ID*2 = Object offset start, ID*2+1= Object vertex Count 
+
+        //*_Inst_ColandIndex xyz= rgb, w=model id
+
+        //*loop through each instances
+
+        float3 normbuf;
+
+        for(int instance=0;instance<_InstanceCount;instance++)
+        {
+
+            float Collided=col.dist;
+
+
+            //*Index value per model,
+            //* indices are stored in cocecutive integer vector array but each model's index starts from 0
+            //* causing it to access same vertex without this
+            int IndexOffset=_VertexIndice[_Inst_ColandIndex[instance].w*3+2].w;
+
+            float4x4 CurMX =_Inst_ScaleRot[instance];
+            float4x4 CurRot=_Inst_RotOnly[instance];
+            float3 CurTranslate=_Inst_Translate[instance].xyz;
+
+
+            //*per each triangles
+            for(
+            int tr=//*index(ci.w)is *3ed to be used as vertex indice index
+            _VertexIndice[_Inst_ColandIndex[instance].w*3].w;//*Beginning Offset of Model
+            
+            tr < 
+            _VertexIndice[ _Inst_ColandIndex[instance].w*3   ].w+
+            _VertexIndice[(_Inst_ColandIndex[instance].w*3)+1].w//*Triangle Count 
+
+            ;tr++)
+            {
+                /*
+                T.v[0]=
+                //*mul(_Inst_ScaleRot[instance], Scale and Rotation Matrix
+                //*_VertexBuffer[(int)_VertexIndice[tr].x]).xyz, Apply Rotation and Rot scale to the vert
+                //*+_Inst_Translate[instance].xyz;//Translate
+
+                */
+
+                
+
+
+                T.v[0]=mul(CurMX,
+                (_VertexBuffer
+                [_VertexIndice[tr].x//*Raw Index Of Model
+                +IndexOffset
+                ]
+                )).xyz
+                +CurTranslate;//*Translation
+
+
+                T.v[1]=mul(CurMX,
+                (_VertexBuffer
+                [_VertexIndice[tr].y
+                +IndexOffset
+                ]
+                )).xyz
+                +CurTranslate; 
+
+
+                T.v[2]=mul(CurMX,
+                (_VertexBuffer
+                [_VertexIndice[tr].z
+                +IndexOffset
+                ]
+                )).xyz
+                +CurTranslate;
+                
+
+                normbuf=mul(CurRot,_NormalArray[tr]).xyz;
+
+                HitTri(ray,col,T,float4(_Inst_ColandIndex[instance].xyz,_Type_Rindex[instance].y),_Type_Rindex[instance].x,normbuf);
+
+                tr+=1000*(Collided!=col.dist);
+            }
+
+
+
+        }
+
+
+
+
+        switch(col.type)
+        {
+            default:
+            col.color=float4(ray.dir.xyz,1);
+            i=32;
+            break;
+            
+            case 0://*Opaque
+            i=30;
+            col.color=float4(col.uv,0,1);
+            break;
+
+
+            case 1://*Refration
+
+            float ref=col.color.a;
+            if(ray.refracted)
+            {
+                ref=1;
+            }
+            col.color.xyz*=0.7; 
+            ray.dir=refr(ray,col.SurNorm,ray.rindex/ref);
+            break;
+            
+            case 2://*Reflective
+            ray.dir=reflect(ray.dir,col.SurNorm);
+            break;
+            
+
+        }
+        col.SurNorm=(float3(0,0,0));
+        col.type=-1;
+    }   
+    Result[id.xy] =float4(col.color.xyzw);
+
+}
+
